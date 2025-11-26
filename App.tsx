@@ -1,11 +1,12 @@
 
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Message, Sender, AppStep, UserRequest } from './types';
-import { MOSCOW_DISTRICTS } from './constants';
+import { MOSCOW_DISTRICTS, ADMIN_PASSWORD, DISPATCHER_PHONE } from './constants';
 import { MessageBubble } from './components/MessageBubble';
 import { generateConfirmationMessage } from './services/geminiService';
 import { getTargetId, setTargetId, getRequests, saveRequest } from './services/storageService';
-import { Send, MapPin, CheckCircle, AlertTriangle, Phone, User, Loader2 } from 'lucide-react';
+import { Send, MapPin, CheckCircle, AlertTriangle, Phone, User, Loader2, PhoneCall } from 'lucide-react';
 
 const App: React.FC = () => {
   // State
@@ -107,10 +108,12 @@ const App: React.FC = () => {
     setIsTyping(true);
     await new Promise(r => setTimeout(r, 800));
     
-    addMessage(`Район ${district} принят. Пожалуйста, напишите Ваше Имя и Телефон в одном сообщении, чтобы ближайший мастер мог связаться с Вами.`, Sender.BOT);
+    addMessage(`Район ${district} принят. Пожалуйста, введите ваш номер телефона. Я также добавлю маску ввода для удобства.`, Sender.BOT);
     setIsTyping(false);
     setStep(AppStep.INPUT_CONTACT);
   };
+
+  // --- ADMIN COMMANDS ---
 
   const handleStats = () => {
     const requests = getRequests();
@@ -150,17 +153,103 @@ const App: React.FC = () => {
     addMessage(statsMsg, Sender.BOT);
   };
 
-  const handleSetId = (cmd: string) => {
-    const parts = cmd.trim().split(' ');
-    if (parts.length > 1 && parts[1]) {
-      const newId = parts[1];
+  const handleSetId = (newId: string) => {
+    if (newId) {
       setTargetId(newId);
       setCurrentTargetId(newId);
       addMessage(`✅ Telegram ID для уведомлений успешно изменен на: ${newId}`, Sender.BOT);
     } else {
-      addMessage(`⚠️ Ошибка формата. Используйте: /setid <новый_id>`, Sender.BOT);
+      addMessage(`⚠️ Ошибка. ID не может быть пустым.`, Sender.BOT);
     }
   };
+
+  const processAdminCommand = (input: string) => {
+    const parts = input.trim().split(' ');
+    const command = parts[0];
+    const password = parts[1];
+    const arg = parts[2]; // Для setid нужен аргумент
+
+    // Проверка пароля
+    if (password !== ADMIN_PASSWORD) {
+       addMessage("⛔ Неверный пароль администратора.", Sender.BOT);
+       return;
+    }
+
+    if (command === '/stats') {
+        handleStats();
+        return;
+    }
+
+    if (command === '/setid') {
+        if (!arg) {
+            addMessage("⚠️ Используйте: /setid <пароль> <новый_id>", Sender.BOT);
+            return;
+        }
+        handleSetId(arg);
+        return;
+    }
+
+    addMessage("Неизвестная команда.", Sender.BOT);
+  };
+
+  // --- PHONE FORMATTING ---
+
+  const formatPhoneNumber = (value: string) => {
+    // Если ввод начинается с команды, не форматируем
+    if (value.startsWith('/')) return value;
+
+    // Удаляем все нецифровые символы
+    const phoneNumber = value.replace(/\D/g, '');
+    
+    // Ограничиваем длину (7xxxxxxxxx -> 11 цифр)
+    if (phoneNumber.length === 0) return '';
+    
+    // Если первая цифра 7, 8 или 9, считаем это российским номером
+    let formatted = '';
+    
+    if (['7', '8', '9'].includes(phoneNumber[0])) {
+        // Начинаем с +7
+        if (phoneNumber[0] === '9') formatted = '+7 (9';
+        else formatted = '+7 (';
+        
+        // Остальные цифры
+        if (phoneNumber.length > 1) {
+            formatted += phoneNumber.substring(1, 4);
+        }
+        if (phoneNumber.length >= 5) {
+            formatted += ') ' + phoneNumber.substring(4, 7);
+        }
+        if (phoneNumber.length >= 8) {
+            formatted += '-' + phoneNumber.substring(7, 9);
+        }
+        if (phoneNumber.length >= 10) {
+            formatted += '-' + phoneNumber.substring(9, 11);
+        }
+        return formatted;
+    } 
+    
+    // Если номер не похож на РФ, просто возвращаем + и цифры
+    return '+' + phoneNumber;
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const val = e.target.value;
+      // Если стираем, разрешаем стирать
+      if (val.length < inputValue.length) {
+          setInputValue(val);
+          return;
+      }
+      
+      // Если это команда, не форматируем
+      if (val.startsWith('/')) {
+          setInputValue(val);
+      } else {
+          setInputValue(formatPhoneNumber(val));
+      }
+  };
+
+
+  // --- SUBMISSION LOGIC ---
 
   const sendTelegramNotification = async (requestData: UserRequest) => {
       try {
@@ -188,35 +277,26 @@ const App: React.FC = () => {
   const handleContactSubmit = async () => {
     if (!inputValue.trim()) return;
     
-    const contactInfo = inputValue;
+    const input = inputValue;
 
     // Admin Commands Check
-    if (contactInfo.startsWith('/')) {
-      addMessage(contactInfo, Sender.USER);
+    if (input.startsWith('/')) {
+      addMessage(input, Sender.USER); // Show command in chat (optional)
       setInputValue('');
-      
-      if (contactInfo === '/stats') {
-        handleStats();
-        return;
-      }
-      if (contactInfo.startsWith('/setid')) {
-        handleSetId(contactInfo);
-        return;
-      }
-
-      addMessage("Неизвестная команда.", Sender.BOT);
+      processAdminCommand(input);
       return;
     }
 
-    setInputValue('');
-    addMessage(contactInfo, Sender.USER);
-    
     // Normal User Flow
-    const name = contactInfo.split(' ')[0] || 'Клиент';
+    setInputValue('');
+    addMessage(input, Sender.USER);
+    
+    // Simple parsing assuming mask works or user enters text
+    const name = 'Клиент'; // Simplified flow: Just phone + implied name
     const newUserData = { 
       ...userData, 
       name: name, 
-      phone: contactInfo,
+      phone: input,
       requestTime: new Date().toLocaleString()
     };
 
@@ -231,7 +311,7 @@ const App: React.FC = () => {
       timestamp: Date.now(),
       district: userData.district,
       name: name,
-      phone: contactInfo,
+      phone: input,
       source: userData.source || 'default'
     });
 
@@ -239,7 +319,7 @@ const App: React.FC = () => {
       // 1. Send Real Telegram Notification via Serverless Function
       await sendTelegramNotification(newUserData);
 
-      // 2. Use Gemini to generate a polite confirmation
+      // 2. Use Static generator
       const confirmationText = await generateConfirmationMessage({
         ...newUserData
       });
@@ -304,21 +384,21 @@ const App: React.FC = () => {
         <div className="flex gap-2 w-full items-center">
           <div className="relative flex-1">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-               <User className="h-5 w-5 text-gray-400" />
+               <Phone className="h-5 w-5 text-gray-400" />
             </div>
             <input
-              type="text"
+              type="tel"
               value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
+              onChange={handleInputChange}
               onKeyDown={handleKeyDown}
-              placeholder="Имя и телефон..."
+              placeholder="+7 (999) 000-00-00"
               className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm shadow-sm"
               autoFocus
             />
           </div>
           <button 
             onClick={handleContactSubmit}
-            disabled={!inputValue.trim()}
+            disabled={!inputValue.trim() || inputValue.length < 5}
             className="bg-blue-600 disabled:bg-blue-300 hover:bg-blue-700 text-white p-3 rounded-xl shadow-lg transition-all"
           >
             <Send size={20} />
@@ -354,17 +434,25 @@ const App: React.FC = () => {
       <div className="w-full max-w-md bg-gray-50 h-[100dvh] flex flex-col shadow-2xl relative overflow-hidden">
         
         {/* Header */}
-        <header className="bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-3 shadow-sm z-10">
-          <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white">
-            <Phone size={20} />
+        <header className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between shadow-sm z-10">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white">
+                <Phone size={20} />
+            </div>
+            <div>
+                <h1 className="font-bold text-gray-800 text-lg leading-tight">Вскрытие Замков</h1>
+                <p className="text-xs text-green-600 font-medium flex items-center gap-1">
+                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                Онлайн • Москва
+                </p>
+            </div>
           </div>
-          <div>
-            <h1 className="font-bold text-gray-800 text-lg leading-tight">Вскрытие Замков</h1>
-            <p className="text-xs text-green-600 font-medium flex items-center gap-1">
-              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-              Онлайн • Москва
-            </p>
-          </div>
+          <a 
+            href={`tel:${DISPATCHER_PHONE}`} 
+            className="bg-green-500 hover:bg-green-600 text-white p-2 rounded-full shadow-md transition-colors"
+          >
+            <PhoneCall size={20} />
+          </a>
         </header>
 
         {/* Chat Area */}

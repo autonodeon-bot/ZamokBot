@@ -1,5 +1,10 @@
 
+
 export const DEFAULT_TARGET_ID = "207940967";
+// Пароль для админ-команд (например: /stats 1234)
+export const ADMIN_PASSWORD = "1234";
+// Номер для кнопки быстрого вызова
+export const DISPATCHER_PHONE = "+79990000000"; 
 
 export const MOSCOW_DISTRICTS = [
   "ЦАО (Центральный)",
