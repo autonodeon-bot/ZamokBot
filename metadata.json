@@ -1,0 +1,5 @@
+{
+  "name": "Zamok Bot Moscow",
+  "description": "A Telegram-style web bot for calling an emergency locksmith in Moscow.",
+  "requestFramePermissions": []
+}
