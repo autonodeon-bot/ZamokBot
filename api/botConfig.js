@@ -1,72 +1,34 @@
 
 // ФАЙЛ КОНФИГУРАЦИИ БОТОВ
-// Просто вставьте токен от BotFather внутри кавычек для нужного номера бота.
 
 export const BOT_TOKENS = {
-  // ОСНОВНОЙ БОТ (если в ссылке нет параметра ?bot=...)
-  "default": "8146835017:AAGdiys1mVUpm8BIlhPNlImEJQTPG_6Mntk",
+  // --- АКТИВНЫЕ БОТЫ ---
+  
+  // По умолчанию (если бот не указан в ссылке, используется этот)
+  "default": "8157154869:AAE0dvjO2oOLZK_hYXHnCzjR0hGa8yNIGaY", 
 
-  // -----------------------------------------------------------
-  // ДОПОЛНИТЕЛЬНЫЕ БОТЫ (до 20 штук)
-  // -----------------------------------------------------------
+  // 1. @zamok24vskritie_bot
+  "zamok24vskritie_bot": "8157154869:AAE0dvjO2oOLZK_hYXHnCzjR0hGa8yNIGaY",
 
-  // Ссылка: https://vash-site.vercel.app/?bot=bot1
-  "bot1": "", 
+  // 2. @remontzamkov_bot
+  "remontzamkov_bot": "8512705532:AAGSTTL6JvrsYGpOVO2KZrhMpwCe_Zwh6os",
 
-  // Ссылка: https://vash-site.vercel.app/?bot=bot2
-  "bot2": "",
+  // 3. @srochnoevskritie_bot
+  "srochnoevskritie_bot": "8440564849:AAHALDkjhgP3k8FfQbj4pGwgfwT6hWbWT4E",
 
-  // Ссылка: https://vash-site.vercel.app/?bot=bot3
-  "bot3": "",
+  // 4. @otkroemdver_bot
+  "otkroemdver_bot": "8495557005:AAFJjKmSkooY3OA9F6p3j8zwPLB4Zvv10Fs",
 
-  // Ссылка: https://vash-site.vercel.app/?bot=bot4
-  "bot4": "",
+  // 5. @vskritie_zamka_v_ofice_bot
+  "vskritie_zamka_v_ofice_bot": "8194768578:AAHIMZZoTd4FneAGi1CUs8oWdRdea5xMVV8",
 
-  // Ссылка: https://vash-site.vercel.app/?bot=bot5
-  "bot5": "",
 
-  // Ссылка: https://vash-site.vercel.app/?bot=bot6
-  "bot6": "",
-
-  // Ссылка: https://vash-site.vercel.app/?bot=bot7
-  "bot7": "",
-
-  // Ссылка: https://vash-site.vercel.app/?bot=bot8
-  "bot8": "",
-
-  // Ссылка: https://vash-site.vercel.app/?bot=bot9
-  "bot9": "",
-
-  // Ссылка: https://vash-site.vercel.app/?bot=bot10
-  "bot10": "",
-
-  // Ссылка: https://vash-site.vercel.app/?bot=bot11
-  "bot11": "",
-
-  // Ссылка: https://vash-site.vercel.app/?bot=bot12
-  "bot12": "",
-
-  // Ссылка: https://vash-site.vercel.app/?bot=bot13
-  "bot13": "",
-
-  // Ссылка: https://vash-site.vercel.app/?bot=bot14
-  "bot14": "",
-
-  // Ссылка: https://vash-site.vercel.app/?bot=bot15
-  "bot15": "",
-
-  // Ссылка: https://vash-site.vercel.app/?bot=bot16
-  "bot16": "",
-
-  // Ссылка: https://vash-site.vercel.app/?bot=bot17
-  "bot17": "",
-
-  // Ссылка: https://vash-site.vercel.app/?bot=bot18
-  "bot18": "",
-
-  // Ссылка: https://vash-site.vercel.app/?bot=bot19
-  "bot19": "",
-
-  // Ссылка: https://vash-site.vercel.app/?bot=bot20
-  "bot20": ""
+  // --- РЕЗЕРВНЫЕ СЛОТЫ (Для будущих ботов) ---
+  // Просто раскомментируйте и вставьте токен
+  
+  // "bot6": "ТОКЕН_ЗДЕСЬ",
+  // "bot7": "ТОКЕН_ЗДЕСЬ",
+  // "bot8": "ТОКЕН_ЗДЕСЬ",
+  // "bot9": "ТОКЕН_ЗДЕСЬ",
+  // "bot10": "ТОКЕН_ЗДЕСЬ",
 };

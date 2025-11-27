@@ -9,26 +9,27 @@ export default async function handler(req, res) {
   const { targetId, message, botId } = req.body;
   
   // Логика выбора токена:
-  // 1. Ищем токен по botId (например, 'bot1', 'bot2') в файле конфигурации
-  // 2. Если не нашли или токен пустой, берем токен 'default'
-  // 3. Если и 'default' нет, пробуем переменную окружения (на всякий случай)
+  // 1. Ищем токен по botId в конфиге (который берет его из env vars)
+  // 2. Если не нашли, берем default
+  // 3. Если default пустой в конфиге, пробуем напрямую process.env.TELEGRAM_BOT_TOKEN
   
   let token = null;
 
-  if (botId && BOT_TOKENS[botId] && BOT_TOKENS[botId].trim() !== "") {
+  // Проверяем, есть ли такой ключ и есть ли значение
+  if (botId && BOT_TOKENS[botId]) {
     token = BOT_TOKENS[botId];
   } else {
     token = BOT_TOKENS["default"];
   }
 
-  // Fallback для надежности
+  // Fallback для надежности (если вдруг botConfig сломался)
   if (!token) {
     token = process.env.TELEGRAM_BOT_TOKEN; 
   }
 
   if (!token) {
-    console.error(`Token not found for botId: ${botId}`);
-    return res.status(500).json({ error: 'Server configuration error: Missing token for this bot ID' });
+    console.error(`Token not found (Environment Variable missing) for botId: ${botId}`);
+    return res.status(500).json({ error: 'Server configuration error: Token is missing in Environment Variables' });
   }
 
   if (!targetId || !message) {
