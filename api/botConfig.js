@@ -22,13 +22,17 @@ export const BOT_TOKENS = {
   // 5. @vskritie_zamka_v_ofice_bot
   "vskritie_zamka_v_ofice_bot": "8194768578:AAHIMZZoTd4FneAGi1CUs8oWdRdea5xMVV8",
 
+  // 6. @poterial_kluch_bot
+  "poterial_kluch_bot": "8439623745:AAEN0eooXdSYurGK8CSOif5MZcYSXOB1gZ8",
 
-  // --- РЕЗЕРВНЫЕ СЛОТЫ (Для будущих ботов) ---
-  // Просто раскомментируйте и вставьте токен
-  
-  // "bot6": "ТОКЕН_ЗДЕСЬ",
-  // "bot7": "ТОКЕН_ЗДЕСЬ",
-  // "bot8": "ТОКЕН_ЗДЕСЬ",
+  // 7. @vskritie_zamkov_bistro_bot
+  "vskritie_zamkov_bistro_bot": "8365355822:AAE5jwEiBMPETmYAHoqg3AuNL7RlCzJJgYM",
+
+  // 8. @vskritiezamkov_dvernix_bot
+  "vskritiezamkov_dvernix_bot": "8556822089:AAHiDVrNHUQmrkkcKPnR1dyrLrbpgVbmhsw",
+
+
+  // --- РЕЗЕРВНЫЕ СЛОТЫ ---
   // "bot9": "ТОКЕН_ЗДЕСЬ",
   // "bot10": "ТОКЕН_ЗДЕСЬ",
 };

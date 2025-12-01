@@ -14,8 +14,8 @@ export interface Message {
 }
 
 export interface UserRequest {
-  isMoscow: boolean;
-  district: string;
+  location: string; // "Москва" или "Московская область"
+  serviceType: string; // "Квартира", "Автомобиль" и т.д.
   name: string;
   phone: string;
   requestTime: string;
@@ -25,7 +25,8 @@ export interface UserRequest {
 export interface StoredRequest {
   id: string;
   timestamp: number;
-  district: string;
+  location: string;
+  serviceType: string;
   name: string;
   phone: string;
   source: string;
@@ -33,10 +34,10 @@ export interface StoredRequest {
 
 export enum AppStep {
   WELCOME,
-  CONFIRM_CITY,
-  SELECT_DISTRICT,
-  INPUT_CONTACT,
+  SELECT_LOCATION, // Выбор: Москва или МО
+  SELECT_SERVICE,  // Выбор: Квартира, Сейф и т.д.
+  INPUT_PHONE,     // Ввод телефона
+  INPUT_NAME,      // Ввод имени
   PROCESSING,
-  COMPLETED,
-  OUT_OF_AREA
+  COMPLETED
 }
