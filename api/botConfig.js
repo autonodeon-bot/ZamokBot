@@ -4,7 +4,7 @@
 export const BOT_TOKENS = {
   // --- АКТИВНЫЕ БОТЫ ---
   
-  // По умолчанию (если бот не указан в ссылке, используется этот)
+  // По умолчанию (основной бот)
   "default": "8157154869:AAE0dvjO2oOLZK_hYXHnCzjR0hGa8yNIGaY", 
 
   // 1. @zamok24vskritie_bot
@@ -30,9 +30,4 @@ export const BOT_TOKENS = {
 
   // 8. @vskritiezamkov_dvernix_bot
   "vskritiezamkov_dvernix_bot": "8556822089:AAHiDVrNHUQmrkkcKPnR1dyrLrbpgVbmhsw",
-
-
-  // --- РЕЗЕРВНЫЕ СЛОТЫ ---
-  // "bot9": "ТОКЕН_ЗДЕСЬ",
-  // "bot10": "ТОКЕН_ЗДЕСЬ",
 };

@@ -63,9 +63,11 @@ const App: React.FC = () => {
     }
 
     const initBot = async () => {
-      // Check for 'bot' param in URL
+      // Check for 'bot' param in URL and clean it (remove @ if present)
       const searchParams = new URLSearchParams(window.location.search);
-      const sourceBot = searchParams.get('bot') || 'default';
+      let sourceBot = searchParams.get('bot') || 'default';
+      sourceBot = sourceBot.replace('@', '');
+      
       setUserData(prev => ({ ...prev, source: sourceBot }));
 
       setIsTyping(true);
@@ -203,7 +205,7 @@ const App: React.FC = () => {
     if (Object.keys(sourceCounts).length > 0) {
         statsMsg += `\n\n🤖 По ботам:\n`;
         Object.entries(sourceCounts).forEach(([name, count]) => {
-            statsMsg += `${name}: ${count}\n`;
+            statsMsg += `@${name}: ${count}\n`;
         });
     }
 
@@ -280,8 +282,8 @@ const App: React.FC = () => {
                        `🛠 <b>Услуга:</b> ${requestData.serviceType}\n` +
                        `📍 <b>Регион:</b> ${requestData.location}\n` +
                        `👤 <b>Имя:</b> ${requestData.name}\n` +
-                       `📱 <b>Телефон:</b> ${requestData.phone}\n` +
-                       `🤖 <b>Бот:</b> ${requestData.source}`
+                       `📱 <b>Телефон:</b> ${requestData.phone}\n\n` +
+                       `🤖 <b>Бот:</b> @${requestData.source}`
           })
       });
   };

@@ -8,28 +8,24 @@ export default async function handler(req, res) {
 
   const { targetId, message, botId } = req.body;
   
+  // Нормализуем имя бота (убираем @ если есть)
+  const cleanBotId = botId ? botId.replace('@', '').trim() : 'default';
+
   // Логика выбора токена:
-  // 1. Ищем токен по botId в конфиге (который берет его из env vars)
+  // 1. Ищем токен по имени
   // 2. Если не нашли, берем default
-  // 3. Если default пустой в конфиге, пробуем напрямую process.env.TELEGRAM_BOT_TOKEN
+  // 3. Если в конфиге нет, пробуем ENV
   
-  let token = null;
+  let token = BOT_TOKENS[cleanBotId] || BOT_TOKENS["default"];
 
-  // Проверяем, есть ли такой ключ и есть ли значение
-  if (botId && BOT_TOKENS[botId]) {
-    token = BOT_TOKENS[botId];
-  } else {
-    token = BOT_TOKENS["default"];
-  }
-
-  // Fallback для надежности (если вдруг botConfig сломался)
+  // Fallback для надежности
   if (!token) {
     token = process.env.TELEGRAM_BOT_TOKEN; 
   }
 
   if (!token) {
-    console.error(`Token not found (Environment Variable missing) for botId: ${botId}`);
-    return res.status(500).json({ error: 'Server configuration error: Token is missing in Environment Variables' });
+    console.error(`Token not found for botId: ${cleanBotId}`);
+    return res.status(500).json({ error: 'Server configuration error: Token missing' });
   }
 
   if (!targetId || !message) {
