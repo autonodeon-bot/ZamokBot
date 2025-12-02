@@ -166,7 +166,14 @@ const App: React.FC = () => {
     });
 
     try {
-        await sendTelegramNotification(finalData);
+        const leadMessage = `🚨 <b>НОВАЯ ЗАЯВКА</b> 🚨\n\n` +
+                       `🛠 <b>Услуга:</b> ${finalData.serviceType}\n` +
+                       `📍 <b>Регион:</b> ${finalData.location}\n` +
+                       `👤 <b>Имя:</b> ${finalData.name}\n` +
+                       `📱 <b>Телефон:</b> ${finalData.phone}\n\n` +
+                       `🤖 <b>Бот:</b> @${finalData.source}`;
+        
+        await sendTelegramMessage(leadMessage);
         
         // Final message
         const confirmationText = await generateConfirmationMessage(finalData);
@@ -184,6 +191,19 @@ const App: React.FC = () => {
 
 
   // --- ADMIN & UTILS ---
+
+  // Отправка сообщений в Telegram (через сервер)
+  const sendTelegramMessage = async (text: string) => {
+      await fetch('/api/telegram', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+              targetId: currentTargetId,
+              botId: userData.source, 
+              message: text
+          })
+      });
+  };
 
   const handleStats = () => {
     const requests = getRequests();
@@ -212,6 +232,46 @@ const App: React.FC = () => {
     addMessage(statsMsg, Sender.BOT);
   };
 
+  const handleReport = async () => {
+    const requests = getRequests();
+    const now = Date.now();
+    const oneDay = 24 * 60 * 60 * 1000;
+    
+    const last7Days = requests.filter(r => r.timestamp > now - (7 * oneDay)).length;
+    const last30Days = requests.filter(r => r.timestamp > now - (30 * oneDay)).length;
+    const total = requests.length;
+
+    // Breakdown by bot for the last 7 days
+    const weeklyByBot: Record<string, number> = {};
+    requests.filter(r => r.timestamp > now - (7 * oneDay)).forEach(r => {
+        const src = r.source || 'default';
+        weeklyByBot[src] = (weeklyByBot[src] || 0) + 1;
+    });
+
+    let reportMsg = `📊 <b>Еженедельный отчет</b>\n\n` +
+                    `📅 <b>За 7 дней:</b> ${last7Days}\n` +
+                    `🗓 <b>За 30 дней:</b> ${last30Days}\n` +
+                    `∑ <b>Всего заявок:</b> ${total}`;
+    
+    if (Object.keys(weeklyByBot).length > 0) {
+        reportMsg += `\n\n🤖 <b>Активность ботов (7 дней):</b>\n`;
+        Object.entries(weeklyByBot).forEach(([name, count]) => {
+             reportMsg += `@${name}: ${count}\n`;
+        });
+    }
+
+    try {
+        setIsTyping(true);
+        await sendTelegramMessage(reportMsg);
+        setIsTyping(false);
+        addMessage("✅ Отчет успешно отправлен в канал.", Sender.BOT);
+    } catch (e) {
+        setIsTyping(false);
+        console.error(e);
+        addMessage("❌ Ошибка отправки отчета.", Sender.BOT);
+    }
+  };
+
   const handleSetId = (newId: string) => {
     if (newId) {
       setTargetId(newId);
@@ -231,6 +291,7 @@ const App: React.FC = () => {
        return;
     }
     if (command === '/stats') return handleStats();
+    if (command === '/report') return handleReport();
     if (command === '/setid') return handleSetId(arg);
     addMessage("Неизвестная команда.", Sender.BOT);
   };
@@ -269,23 +330,6 @@ const App: React.FC = () => {
       if (step === AppStep.INPUT_PHONE) handlePhoneSubmit();
       if (step === AppStep.INPUT_NAME) handleNameSubmit();
     }
-  };
-
-  const sendTelegramNotification = async (requestData: UserRequest) => {
-      await fetch('/api/telegram', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-              targetId: currentTargetId,
-              botId: requestData.source, 
-              message: `🚨 <b>НОВАЯ ЗАЯВКА</b> 🚨\n\n` +
-                       `🛠 <b>Услуга:</b> ${requestData.serviceType}\n` +
-                       `📍 <b>Регион:</b> ${requestData.location}\n` +
-                       `👤 <b>Имя:</b> ${requestData.name}\n` +
-                       `📱 <b>Телефон:</b> ${requestData.phone}\n\n` +
-                       `🤖 <b>Бот:</b> @${requestData.source}`
-          })
-      });
   };
 
   // --- RENDER INPUTS ---
