@@ -1,21 +1,25 @@
 
-import { BOT_TOKENS } from './botConfig.js';
+import { BOT_TOKENS, MAIN_CHANNEL_ID } from './botConfig.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { targetId, message, botId } = req.body;
+  const { targetId: clientTargetId, message, botId } = req.body;
   
   // Нормализуем имя бота (убираем @ если есть)
   const cleanBotId = botId ? botId.replace('@', '').trim() : 'default';
+
+  // Логика выбора получателя:
+  // Если в конфиге задан MAIN_CHANNEL_ID, используем его (приоритет - общий канал).
+  // Иначе используем то, что прислал фронтенд (личный ID админа).
+  const finalChatId = MAIN_CHANNEL_ID || clientTargetId;
 
   // Логика выбора токена:
   // 1. Ищем токен по имени
   // 2. Если не нашли, берем default
   // 3. Если в конфиге нет, пробуем ENV
-  
   let token = BOT_TOKENS[cleanBotId] || BOT_TOKENS["default"];
 
   // Fallback для надежности
@@ -28,7 +32,7 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Server configuration error: Token missing' });
   }
 
-  if (!targetId || !message) {
+  if (!finalChatId || !message) {
     return res.status(400).json({ error: 'Missing parameters' });
   }
 
@@ -40,7 +44,7 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        chat_id: targetId,
+        chat_id: finalChatId,
         text: message,
         parse_mode: 'HTML'
       }),
