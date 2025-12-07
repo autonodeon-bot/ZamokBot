@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { AppStep, UserRequest } from './types';
-import { ADMIN_PASSWORD, DISPATCHER_PHONE, DISPATCHER_PHONE_DISPLAY } from './constants';
+import { ADMIN_PASSWORD, DISPATCHER_PHONE } from './constants';
 import { getTargetId, setTargetId, getRequests, saveRequest } from './services/storageService';
 import { Phone, CheckCircle, ArrowLeft, Send, MapPin, User, PhoneCall, FileText, ShieldAlert } from 'lucide-react';
 
