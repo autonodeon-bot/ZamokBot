@@ -1,285 +1,148 @@
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Message, Sender, AppStep, UserRequest } from './types';
-import { LOCATIONS, SERVICE_TYPES, ADMIN_PASSWORD, DISPATCHER_PHONE } from './constants';
-import { MessageBubble } from './components/MessageBubble';
-import { generateConfirmationMessage } from './services/geminiService';
+import React, { useState, useEffect } from 'react';
+import { AppStep, UserRequest } from './types';
+import { ADMIN_PASSWORD, DISPATCHER_PHONE, DISPATCHER_PHONE_DISPLAY } from './constants';
 import { getTargetId, setTargetId, getRequests, saveRequest } from './services/storageService';
-import { Send, MapPin, CheckCircle, Phone, Loader2, PhoneCall, Wrench, User as UserIcon } from 'lucide-react';
+import { Phone, CheckCircle, ArrowLeft, Send, MapPin, User, PhoneCall, FileText, ShieldAlert } from 'lucide-react';
 
 const App: React.FC = () => {
-  // State
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [step, setStep] = useState<AppStep>(AppStep.WELCOME);
-  const [userData, setUserData] = useState<UserRequest>({
-    location: '',
-    serviceType: '',
+  // --- STATE ---
+  const [step, setStep] = useState<AppStep>(AppStep.MENU);
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+  
+  // Data State
+  const [formData, setFormData] = useState<UserRequest>({
     name: '',
     phone: '',
-    requestTime: '',
-    source: 'default'
+    metro: '',
+    source: 'default',
+    telegramUser: ''
   });
-  const [inputValue, setInputValue] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
+
+  // Admin / Target
   const [currentTargetId, setCurrentTargetId] = useState(getTargetId());
 
-  // Refs for scrolling
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  // Scroll to bottom helper
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, isTyping]);
-
-  // Add a message helper
-  const addMessage = useCallback((text: string, sender: Sender, type: 'text' | 'options' | 'form' = 'text', options?: string[]) => {
-    const newMessage: Message = {
-      id: Date.now().toString(),
-      text,
-      sender,
-      timestamp: new Date(),
-      type,
-      options
-    };
-    setMessages(prev => [...prev, newMessage]);
-  }, []);
-
-  // Initial greeting & URL Param Parsing
+  // --- INITIALIZATION ---
   useEffect(() => {
     // 1. Force HTTPS
     if (window.location.protocol === 'http:' && window.location.hostname !== 'localhost') {
         window.location.href = window.location.href.replace('http:', 'https:');
     }
 
-    // 2. Init Telegram Web App
+    // 2. Parse URL Params (Source Bot)
+    const searchParams = new URLSearchParams(window.location.search);
+    let sourceBot = searchParams.get('bot') || 'default';
+    sourceBot = sourceBot.replace('@', '');
+
+    // 3. Init Telegram Web App & Get User
+    let tgUserStr = '';
     const tg = (window as any).Telegram?.WebApp;
     if (tg) {
         tg.ready();
         tg.expand();
+        const user = tg.initDataUnsafe?.user;
+        if (user) {
+            const username = user.username ? `@${user.username}` : '';
+            tgUserStr = `${user.first_name} ${user.last_name || ''} ${username}`.trim();
+        }
     }
 
-    const initBot = async () => {
-      // Check for 'bot' param in URL and clean it (remove @ if present)
-      const searchParams = new URLSearchParams(window.location.search);
-      let sourceBot = searchParams.get('bot') || 'default';
-      sourceBot = sourceBot.replace('@', '');
-      
-      setUserData(prev => ({ ...prev, source: sourceBot }));
-
-      setIsTyping(true);
-      await new Promise(r => setTimeout(r, 1000));
-      addMessage("Здравствуйте! Вы обратились в сервис по вскрытию дверей квартир, домов, автомобилей, сейфов. Ответьте на несколько вопросов и ожидайте звонка мастера.", Sender.BOT);
-      
-      await new Promise(r => setTimeout(r, 800));
-      setIsTyping(false);
-      setStep(AppStep.SELECT_LOCATION);
-    };
-    initBot();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setFormData(prev => ({ 
+        ...prev, 
+        source: sourceBot,
+        telegramUser: tgUserStr
+    }));
   }, []);
 
-  // --- FLOW HANDLERS ---
 
-  // Step 1: Location
-  const handleLocationSelect = async (location: string) => {
-    addMessage(location, Sender.USER);
-    setUserData(prev => ({ ...prev, location }));
-    
-    setIsTyping(true);
-    await new Promise(r => setTimeout(r, 600));
-    
-    addMessage("Что нужно вскрыть?", Sender.BOT);
-    setIsTyping(false);
-    setStep(AppStep.SELECT_SERVICE);
+  // --- LOGIC: CALL OPERATOR ---
+  const handleCallOperator = async () => {
+    // 1. Отправляем уведомление в канал, что человек нажал кнопку
+    setIsLoading(true);
+    try {
+        const msg = `🔔 <b>НАЖАЛИ КНОПКУ ЗВОНКА</b>\n\n` +
+                    `👤 <b>TG Пользователь:</b> ${formData.telegramUser || 'Не определен'}\n` +
+                    `🤖 <b>Бот:</b> @${formData.source}`;
+        
+        // Отправляем "тихо", не блокируем интерфейс надолго
+        sendTelegramMessage(msg).catch(console.error);
+        
+    } finally {
+        setIsLoading(false);
+        // 2. Открываем набор номера
+        window.location.href = `tel:${DISPATCHER_PHONE}`;
+    }
   };
 
-  // Step 2: Service Type
-  const handleServiceSelect = async (service: string) => {
-    addMessage(service, Sender.USER);
-    setUserData(prev => ({ ...prev, serviceType: service }));
-    
-    setIsTyping(true);
-    await new Promise(r => setTimeout(r, 600));
-    
-    addMessage("Ваш номер телефона?", Sender.BOT);
-    setIsTyping(false);
-    setStep(AppStep.INPUT_PHONE);
-  };
 
-  // Step 3: Phone Input
-  const handlePhoneSubmit = async () => {
-    if (!inputValue.trim()) return;
-
-    // Check for admin commands first
-    if (inputValue.startsWith('/')) {
-        addMessage(inputValue, Sender.USER);
-        const command = inputValue;
-        setInputValue('');
-        processAdminCommand(command);
+  // --- LOGIC: SUBMIT FORM ---
+  const handleSubmitForm = async () => {
+    if (!formData.name.trim() || !formData.phone.trim() || formData.phone.length < 16) {
+        setErrorMsg('Заполните Имя и корректный Телефон');
+        return;
+    }
+    
+    // Check for admin command in Name field
+    if (formData.name.startsWith('/')) {
+        processAdminCommand(formData.name);
         return;
     }
 
-    const phone = inputValue;
-    addMessage(phone, Sender.USER);
-    setUserData(prev => ({ ...prev, phone }));
-    setInputValue('');
-    
-    setIsTyping(true);
-    await new Promise(r => setTimeout(r, 600));
-    
-    addMessage("Как к вам обращаться?", Sender.BOT);
-    setIsTyping(false);
-    setStep(AppStep.INPUT_NAME);
-  };
+    setIsLoading(true);
+    setErrorMsg('');
 
-  // Step 4: Name Input & Final Submit
-  const handleNameSubmit = async () => {
-    if (!inputValue.trim()) return;
-
-    const name = inputValue;
-    addMessage(name, Sender.USER);
-    setInputValue('');
-
-    const finalData = {
-        ...userData,
-        name: name,
-        requestTime: new Date().toLocaleString()
-    };
-    setUserData(finalData);
-
-    setIsTyping(true);
-    setStep(AppStep.PROCESSING);
-
-    // Save locally
+    // Save locally for stats
     saveRequest({
-      id: Date.now().toString(),
-      timestamp: Date.now(),
-      location: finalData.location,
-      serviceType: finalData.serviceType,
-      name: finalData.name,
-      phone: finalData.phone,
-      source: finalData.source || 'default'
+        id: Date.now().toString(),
+        timestamp: Date.now(),
+        name: formData.name,
+        phone: formData.phone,
+        metro: formData.metro,
+        source: formData.source || 'default'
     });
 
+    const msg = `📝 <b>ЗАЯВКА НА ОБРАТНЫЙ ЗВОНОК</b>\n\n` +
+                `👤 <b>Имя:</b> ${formData.name}\n` +
+                `📱 <b>Телефон:</b> ${formData.phone}\n` +
+                `🚇 <b>Метро:</b> ${formData.metro || 'Не указано'}\n` +
+                `➖➖➖➖➖➖➖➖\n` +
+                `👤 <b>TG Аккаунт:</b> ${formData.telegramUser || 'Не определен'}\n` +
+                `🤖 <b>Бот:</b> @${formData.source}`;
+
     try {
-        const leadMessage = `🚨 <b>НОВАЯ ЗАЯВКА</b> 🚨\n\n` +
-                       `🛠 <b>Услуга:</b> ${finalData.serviceType}\n` +
-                       `📍 <b>Регион:</b> ${finalData.location}\n` +
-                       `👤 <b>Имя:</b> ${finalData.name}\n` +
-                       `📱 <b>Телефон:</b> ${finalData.phone}\n\n` +
-                       `🤖 <b>Бот:</b> @${finalData.source}`;
-        
-        await sendTelegramMessage(leadMessage);
-        
-        // Final message
-        const confirmationText = await generateConfirmationMessage(finalData);
-        
-        setIsTyping(false);
-        addMessage(confirmationText, Sender.BOT);
-        setStep(AppStep.COMPLETED);
+        await sendTelegramMessage(msg);
+        setStep(AppStep.SUCCESS);
     } catch (e) {
         console.error(e);
-        setIsTyping(false);
-        addMessage("Спасибо! Заявка принята.", Sender.BOT);
-        setStep(AppStep.COMPLETED);
+        setErrorMsg('Ошибка отправки. Попробуйте позвонить нам.');
+    } finally {
+        setIsLoading(false);
     }
   };
 
-
-  // --- ADMIN & UTILS ---
-
-  // Отправка сообщений в Telegram (через сервер)
+  // --- API SENDER ---
   const sendTelegramMessage = async (text: string) => {
-      await fetch('/api/telegram', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-              targetId: currentTargetId,
-              botId: userData.source, 
-              message: text
-          })
-      });
-  };
-
-  const handleStats = () => {
-    const requests = getRequests();
-    const now = new Date();
-    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    
-    const total = requests.length;
-    const today = requests.filter(r => r.timestamp >= startOfDay).length;
-
-    const sourceCounts: Record<string, number> = {};
-    requests.forEach(r => {
-        const src = r.source || 'Неизвестно';
-        sourceCounts[src] = (sourceCounts[src] || 0) + 1;
+    const res = await fetch('/api/telegram', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            targetId: currentTargetId,
+            botId: formData.source, 
+            message: text
+        })
     });
-
-    let statsMsg = `📊 Статистика (ID: ${currentTargetId})\n` +
-                     `Всего: ${total} | Сегодня: ${today}`;
-    
-    if (Object.keys(sourceCounts).length > 0) {
-        statsMsg += `\n\n🤖 По ботам:\n`;
-        Object.entries(sourceCounts).forEach(([name, count]) => {
-            statsMsg += `@${name}: ${count}\n`;
-        });
-    }
-
-    addMessage(statsMsg, Sender.BOT);
-  };
-
-  const handleReport = async () => {
-    const requests = getRequests();
-    const now = Date.now();
-    const oneDay = 24 * 60 * 60 * 1000;
-    
-    const last7Days = requests.filter(r => r.timestamp > now - (7 * oneDay)).length;
-    const last30Days = requests.filter(r => r.timestamp > now - (30 * oneDay)).length;
-    const total = requests.length;
-
-    // Breakdown by bot for the last 7 days
-    const weeklyByBot: Record<string, number> = {};
-    requests.filter(r => r.timestamp > now - (7 * oneDay)).forEach(r => {
-        const src = r.source || 'default';
-        weeklyByBot[src] = (weeklyByBot[src] || 0) + 1;
-    });
-
-    let reportMsg = `📊 <b>Еженедельный отчет</b>\n\n` +
-                    `📅 <b>За 7 дней:</b> ${last7Days}\n` +
-                    `🗓 <b>За 30 дней:</b> ${last30Days}\n` +
-                    `∑ <b>Всего заявок:</b> ${total}`;
-    
-    if (Object.keys(weeklyByBot).length > 0) {
-        reportMsg += `\n\n🤖 <b>Активность ботов (7 дней):</b>\n`;
-        Object.entries(weeklyByBot).forEach(([name, count]) => {
-             reportMsg += `@${name}: ${count}\n`;
-        });
-    }
-
-    try {
-        setIsTyping(true);
-        await sendTelegramMessage(reportMsg);
-        setIsTyping(false);
-        addMessage("✅ Отчет успешно отправлен в канал.", Sender.BOT);
-    } catch (e) {
-        setIsTyping(false);
-        console.error(e);
-        addMessage("❌ Ошибка отправки отчета.", Sender.BOT);
+    const data = await res.json();
+    if (!data.success && data.error) {
+        // Если ошибка API, показываем её для админа (для отладки)
+        if (data.details && data.details.description) {
+            throw new Error(data.details.description);
+        }
+        throw new Error(data.error);
     }
   };
 
-  const handleSetId = (newId: string) => {
-    if (newId) {
-      setTargetId(newId);
-      setCurrentTargetId(newId);
-      addMessage(`✅ ID изменен на: ${newId}`, Sender.BOT);
-    }
-  };
-
+  // --- ADMIN COMMANDS ---
   const processAdminCommand = (input: string) => {
     const parts = input.trim().split(' ');
     const command = parts[0];
@@ -287,217 +150,260 @@ const App: React.FC = () => {
     const arg = parts[2];
 
     if (password !== ADMIN_PASSWORD) {
-       addMessage("⛔ Неверный пароль.", Sender.BOT);
+       setErrorMsg("⛔ Неверный пароль администратора");
        return;
     }
-    if (command === '/stats') return handleStats();
-    if (command === '/report') return handleReport();
-    if (command === '/setid') return handleSetId(arg);
-    addMessage("Неизвестная команда.", Sender.BOT);
+
+    if (command === '/report') {
+        handleReport(); 
+        return;
+    }
+    if (command === '/setid') {
+        if (arg) {
+            setTargetId(arg);
+            setCurrentTargetId(arg);
+            alert(`ID изменен на ${arg}`);
+            setFormData(p => ({...p, name: ''}));
+        }
+        return;
+    }
+    if (command === '/stats') {
+        const reqs = getRequests();
+        alert(`Всего заявок на устройстве: ${reqs.length}`);
+        setFormData(p => ({...p, name: ''}));
+        return;
+    }
   };
 
-  // Phone Mask
+  const handleReport = async () => {
+    setIsLoading(true);
+    const requests = getRequests();
+    const total = requests.length;
+    
+    // Simple report logic
+    const reportMsg = `📊 <b>Ручной отчет (с устройства админа)</b>\n` +
+                      `Всего сохраненных локально заявок: ${total}`;
+
+    try {
+        await sendTelegramMessage(reportMsg);
+        alert('Отчет отправлен в канал');
+    } catch (e) {
+        alert('Ошибка отправки отчета');
+    } finally {
+        setIsLoading(false);
+        setFormData(p => ({...p, name: ''}));
+    }
+  };
+
+  // --- INPUT HANDLERS ---
   const formatPhoneNumber = (value: string) => {
+    // Allows admin commands to pass through without formatting
     if (value.startsWith('/')) return value;
+
     const phoneNumber = value.replace(/\D/g, '');
     if (phoneNumber.length === 0) return '';
+    
     let formatted = '';
+    // Force +7
     if (['7', '8', '9'].includes(phoneNumber[0])) {
         if (phoneNumber[0] === '9') formatted = '+7 (9';
         else formatted = '+7 (';
+        
         if (phoneNumber.length > 1) formatted += phoneNumber.substring(1, 4);
         if (phoneNumber.length >= 5) formatted += ') ' + phoneNumber.substring(4, 7);
         if (phoneNumber.length >= 8) formatted += '-' + phoneNumber.substring(7, 9);
         if (phoneNumber.length >= 10) formatted += '-' + phoneNumber.substring(9, 11);
-        return formatted;
-    } 
-    return '+' + phoneNumber;
+    } else {
+        return '+7';
+    }
+    return formatted;
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const val = e.target.value;
-      if (step === AppStep.INPUT_PHONE) {
-         if (val.length < inputValue.length) { setInputValue(val); return; } // Allow delete
-         if (val.startsWith('/')) { setInputValue(val); } 
-         else { setInputValue(formatPhoneNumber(val)); }
-      } else {
-         setInputValue(val);
+      if (val.length < formData.phone.length) {
+          // Deletion
+          setFormData(p => ({ ...p, phone: val }));
+          return;
       }
+      setFormData(p => ({ ...p, phone: formatPhoneNumber(val) }));
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      if (step === AppStep.INPUT_PHONE) handlePhoneSubmit();
-      if (step === AppStep.INPUT_NAME) handleNameSubmit();
-    }
-  };
 
-  // --- RENDER INPUTS ---
+  // --- RENDERERS ---
 
-  const renderInputArea = () => {
-    // 1. Выбор локации
-    if (step === AppStep.SELECT_LOCATION) {
-      return (
-        <div className="flex gap-2 w-full">
-          {LOCATIONS.map((loc) => (
-            <button 
-              key={loc}
-              onClick={() => handleLocationSelect(loc)}
-              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-2 rounded-xl text-sm flex items-center justify-center gap-1 shadow-lg"
-            >
-              <MapPin size={16} /> {loc}
-            </button>
-          ))}
-        </div>
-      );
-    }
-
-    // 2. Выбор услуги
-    if (step === AppStep.SELECT_SERVICE) {
-      return (
-        <div className="grid grid-cols-2 gap-2 w-full max-h-48 overflow-y-auto no-scrollbar">
-          {SERVICE_TYPES.map((type) => (
-            <button
-              key={type}
-              onClick={() => handleServiceSelect(type)}
-              className="bg-white border border-blue-100 hover:bg-blue-50 text-blue-800 text-sm font-medium py-3 px-2 rounded-lg shadow-sm transition-colors flex items-center justify-center gap-2"
-            >
-              <Wrench size={16} className="text-blue-500" /> {type}
-            </button>
-          ))}
-        </div>
-      );
-    }
-
-    // 3. Ввод телефона
-    if (step === AppStep.INPUT_PHONE) {
-      return (
-        <div className="flex gap-2 w-full items-center">
-          <div className="relative flex-1">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-               <Phone className="h-5 w-5 text-gray-400" />
-            </div>
-            <input
-              type="tel"
-              value={inputValue}
-              onChange={handleInputChange}
-              onKeyDown={handleKeyDown}
-              placeholder="+7 (999) 000-00-00"
-              className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
-              autoFocus
-            />
-          </div>
-          <button 
-            onClick={handlePhoneSubmit}
-            disabled={!inputValue.trim() || inputValue.length < 5}
-            className="bg-blue-600 disabled:bg-gray-300 text-white p-3 rounded-xl shadow-lg"
-          >
-            <Send size={20} />
-          </button>
-        </div>
-      );
-    }
-
-    // 4. Ввод имени
-    if (step === AppStep.INPUT_NAME) {
-        return (
-          <div className="flex gap-2 w-full items-center">
-            <div className="relative flex-1">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                 <UserIcon className="h-5 w-5 text-gray-400" />
-              </div>
-              <input
-                type="text"
-                value={inputValue}
-                onChange={handleInputChange}
-                onKeyDown={handleKeyDown}
-                placeholder="Иван"
-                className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                autoFocus
-              />
+  // 1. HEADER
+  const renderHeader = () => (
+    <header className="bg-white shadow-sm pt-4 pb-3 px-4 sticky top-0 z-50">
+        <div className="flex justify-between items-center">
+            <div className="flex items-center gap-3">
+                <div className="bg-blue-600 w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-md">
+                    <ShieldAlert size={24} />
+                </div>
+                <div>
+                    <h1 className="font-bold text-gray-900 leading-tight">Служба Вскрытия</h1>
+                    <p className="text-xs text-green-600 font-semibold flex items-center gap-1">
+                        <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                        Мастер готов к выезду
+                    </p>
+                </div>
             </div>
             <button 
-              onClick={handleNameSubmit}
-              disabled={!inputValue.trim()}
-              className="bg-green-600 disabled:bg-gray-300 text-white p-3 rounded-xl shadow-lg"
+                onClick={handleCallOperator}
+                className="bg-green-500 hover:bg-green-600 text-white p-2.5 rounded-full shadow-lg transition-transform active:scale-95"
             >
-              <Send size={20} />
+                <PhoneCall size={22} fill="currentColor" />
             </button>
-          </div>
-        );
-      }
-
-    if (step === AppStep.COMPLETED) {
-      return (
-        <div className="w-full bg-green-100 text-green-800 p-3 rounded-xl flex items-center justify-center gap-2 border border-green-200">
-          <CheckCircle size={20} />
-          <span className="font-medium">Заявка отправлена</span>
         </div>
-      );
-    }
+    </header>
+  );
 
-    return null;
-  };
+  // 2. MAIN MENU
+  const renderMenu = () => (
+    <div className="flex flex-col gap-4 px-4 py-6 flex-1 justify-center">
+        <div className="text-center mb-6">
+            <h2 className="text-xl font-bold text-gray-800 mb-3 leading-snug">
+                Сломался замок? Не открывается дверь? Нужно вскрыть автомобиль?
+            </h2>
+            <p className="text-gray-600 font-medium bg-white/50 inline-block px-3 py-1 rounded-lg">
+                Вы на верном пути
+            </p>
+        </div>
+
+        <button 
+            onClick={handleCallOperator}
+            className="group relative bg-white border-2 border-green-500 hover:bg-green-50 active:bg-green-100 p-6 rounded-2xl shadow-sm transition-all flex flex-col items-center gap-3"
+        >
+            <div className="bg-green-100 text-green-600 p-4 rounded-full mb-1 group-hover:scale-110 transition-transform">
+                <Phone size={32} />
+            </div>
+            <div className="text-center">
+                <span className="block text-xl font-bold text-gray-800">Позвонить оператору</span>
+            </div>
+        </button>
+
+        <button 
+            onClick={() => setStep(AppStep.FORM)}
+            className="group relative bg-white border border-gray-200 hover:border-blue-400 p-6 rounded-2xl shadow-sm transition-all flex flex-col items-center gap-3"
+        >
+            <div className="bg-blue-50 text-blue-600 p-4 rounded-full mb-1 group-hover:scale-110 transition-transform">
+                <FileText size={32} />
+            </div>
+            <div className="text-center">
+                <span className="block text-xl font-bold text-gray-800">Заказать обратный звонок</span>
+                <span className="block text-sm text-gray-500 mt-1">Перезвоним в течение 5 минут</span>
+            </div>
+        </button>
+        
+        <div className="mt-8 bg-yellow-50 border border-yellow-100 p-4 rounded-xl text-xs text-yellow-800 text-center">
+            Мы работаем круглосуточно по Москве и области. <br/>Вскрытие замков, дверей, сейфов, авто.
+        </div>
+    </div>
+  );
+
+  // 3. FORM
+  const renderForm = () => (
+    <div className="flex flex-col flex-1 px-4 py-6">
+        <button 
+            onClick={() => { setStep(AppStep.MENU); setErrorMsg(''); }}
+            className="flex items-center text-gray-500 mb-6 hover:text-gray-800 transition-colors"
+        >
+            <ArrowLeft size={20} className="mr-1" /> Назад
+        </button>
+
+        <h2 className="text-2xl font-bold text-gray-800 mb-6">Заявка на выезд</h2>
+
+        <div className="space-y-4 flex-1">
+            <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Ваше имя <span className="text-red-500">*</span></label>
+                <div className="relative">
+                    <User className="absolute left-3 top-3.5 text-gray-400" size={20} />
+                    <input 
+                        type="text"
+                        placeholder="Как к вам обращаться"
+                        value={formData.name}
+                        onChange={(e) => setFormData({...formData, name: e.target.value})}
+                        className="w-full pl-10 pr-4 py-3 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow"
+                    />
+                </div>
+            </div>
+
+            <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Телефон <span className="text-red-500">*</span></label>
+                <div className="relative">
+                    <Phone className="absolute left-3 top-3.5 text-gray-400" size={20} />
+                    <input 
+                        type="tel"
+                        placeholder="+7 (999) 000-00-00"
+                        value={formData.phone}
+                        onChange={handlePhoneChange}
+                        className="w-full pl-10 pr-4 py-3 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow"
+                    />
+                </div>
+            </div>
+
+            <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Станция метро / Район</label>
+                <div className="relative">
+                    <MapPin className="absolute left-3 top-3.5 text-gray-400" size={20} />
+                    <input 
+                        type="text"
+                        placeholder="Например: Таганская"
+                        value={formData.metro}
+                        onChange={(e) => setFormData({...formData, metro: e.target.value})}
+                        className="w-full pl-10 pr-4 py-3 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow"
+                    />
+                </div>
+            </div>
+            
+            {errorMsg && (
+                <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg border border-red-100 animate-pulse">
+                    {errorMsg}
+                </div>
+            )}
+        </div>
+
+        <button 
+            onClick={handleSubmitForm}
+            disabled={isLoading}
+            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-bold py-4 rounded-xl shadow-lg flex items-center justify-center gap-2 mt-6 transition-all active:scale-[0.98]"
+        >
+            {isLoading ? 'Отправка...' : <>Отправить заявку <Send size={20} /></>}
+        </button>
+    </div>
+  );
+
+  // 4. SUCCESS
+  const renderSuccess = () => (
+    <div className="flex flex-col flex-1 items-center justify-center px-6 text-center">
+        <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center text-green-600 mb-6 animate-bounce">
+            <CheckCircle size={48} />
+        </div>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">Заявка принята!</h2>
+        <p className="text-gray-600 mb-8">
+            Диспетчер получил ваши данные и перезвонит вам в ближайшую минуту.
+        </p>
+        
+        <button 
+            onClick={() => {
+                setFormData(p => ({ ...p, name: '', phone: '', metro: '' }));
+                setStep(AppStep.MENU);
+            }}
+            className="w-full bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold py-3 rounded-xl transition-colors"
+        >
+            Вернуться на главную
+        </button>
+    </div>
+  );
 
   return (
-    <div className="flex justify-center min-h-screen bg-slate-200">
-      <div className="w-full max-w-md bg-gray-50 h-[100dvh] flex flex-col shadow-2xl relative overflow-hidden">
+    <div className="flex justify-center min-h-screen bg-gray-100">
+      <div className="w-full max-w-md bg-white min-h-[100dvh] flex flex-col shadow-xl relative">
+        {renderHeader()}
         
-        {/* Header */}
-        <header className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between shadow-sm z-10">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white">
-                <Phone size={20} />
-            </div>
-            <div>
-                <h1 className="font-bold text-gray-800 text-lg leading-tight">Вскрытие Замков</h1>
-                <p className="text-xs text-green-600 font-medium flex items-center gap-1">
-                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                Работаем 24/7
-                </p>
-            </div>
-          </div>
-          <a 
-            href={`tel:${DISPATCHER_PHONE}`} 
-            className="bg-green-500 hover:bg-green-600 text-white p-2 rounded-full shadow-md transition-colors"
-          >
-            <PhoneCall size={20} />
-          </a>
-        </header>
-
-        {/* Chat Area */}
-        <main className="flex-1 overflow-y-auto p-4 space-y-4 bg-[url('https://www.transparenttextures.com/patterns/subtle-white-feathers.png')]">
-          {messages.map((msg) => (
-            <MessageBubble key={msg.id} message={msg} />
-          ))}
-          
-          {isTyping && (
-            <div className="flex w-full mb-4 justify-start">
-              <div className="flex max-w-[80%] flex-row items-end gap-2">
-                <div className="bg-white p-3 rounded-2xl rounded-bl-none shadow-sm">
-                    <div className="flex space-x-1">
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-                    </div>
-                </div>
-              </div>
-            </div>
-          )}
-          
-          <div ref={messagesEndRef} />
-        </main>
-
-        {/* Footer */}
-        <footer className="bg-gray-100 border-t border-gray-200 p-4 pb-6 safe-area-bottom">
-          {step === AppStep.PROCESSING ? (
-             <div className="flex justify-center items-center gap-2 text-gray-500 py-2">
-                <Loader2 className="animate-spin" /> Обработка...
-             </div>
-          ) : (
-             renderInputArea()
-          )}
-        </footer>
+        {step === AppStep.MENU && renderMenu()}
+        {step === AppStep.FORM && renderForm()}
+        {step === AppStep.SUCCESS && renderSuccess()}
       </div>
     </div>
   );

@@ -14,30 +14,24 @@ export interface Message {
 }
 
 export interface UserRequest {
-  location: string; // "Москва" или "Московская область"
-  serviceType: string; // "Квартира", "Автомобиль" и т.д.
   name: string;
   phone: string;
-  requestTime: string;
+  metro: string; // Новое поле
   source?: string;
+  telegramUser?: string; // Имя пользователя из ТГ
 }
 
 export interface StoredRequest {
   id: string;
   timestamp: number;
-  location: string;
-  serviceType: string;
   name: string;
   phone: string;
+  metro: string;
   source: string;
 }
 
 export enum AppStep {
-  WELCOME,
-  SELECT_LOCATION, // Выбор: Москва или МО
-  SELECT_SERVICE,  // Выбор: Квартира, Сейф и т.д.
-  INPUT_PHONE,     // Ввод телефона
-  INPUT_NAME,      // Ввод имени
-  PROCESSING,
-  COMPLETED
+  MENU,      // Главное меню (кнопки)
+  FORM,      // Форма заявки
+  SUCCESS    // Экран успеха
 }
